@@ -1,0 +1,17 @@
+QueryServer基于nginx的负载均衡
+
+upstream  phoenixServer {
+	server   127.0.0.1:8765 max_fails=5 fail_timeout=60s;
+	server   172.16.167.174:8765 max_fails=5 fail_timeout=60s;
+}
+
+server{
+	    access_log /home/log_sellbot/hbase_big_data/phoenixServer.log;
+	    error_log /home/log_sellbot/hbase_big_data/phoenixServer_error.log;
+        listen 8764;
+        server_name phoenixServer;
+	    location / {
+            proxy_pass   http://phoenixServer;
+        }
+
+}
