@@ -3,8 +3,13 @@ from flask import request
 from flask import jsonify
 from flask_restful import Resource
 from flask import current_app
-from service.models import dbtool_hbase as dbtool
 import time
+from service.config.setting import type_db
+if type_db == "es":
+    from service.models import dbtool_Elasticsearch as dbtool
+else:
+    from service.models import dbtool_hbase as dbtool
+
 company_entry = Blueprint('company', __name__)
 
 
@@ -71,8 +76,6 @@ class CompanyApi(Resource):
             startid = int(startid)
         else:
             startid = 0
-
-
 
         result, all_n = dbtool.db_search(content, page, per_page, startn, quick, startid, logger=logger)
         if len(result) != 0:

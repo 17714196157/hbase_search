@@ -1,9 +1,0 @@
-{
-  "MONGODB_SETTINGS": {
-    "db": "BusinessCircles",
-    "username": "guiji",
-    "password": "guiji@123qwe",
-    "port": 27017,
-    "host": "127.0.0.1"
-  }
-}

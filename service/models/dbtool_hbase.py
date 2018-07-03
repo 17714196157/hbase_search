@@ -2,14 +2,17 @@ import phoenixdb.cursor
 import jpype
 import jaydebeapi
 import pandas as pd
-import os
-import redis
-import json
-from functools import wraps
 from functools import lru_cache
 import subprocess
 from threading import Timer
 import time
+from service.actions.cache_fun import cache_flag
+from service.actions.cache_fun import cache_func_redis
+from service.config.setting import column_name_list
+from service.config.setting import map_field_opt_search
+from service.config.setting import map_field
+from service.config.setting import database_url
+
 
 class QueryServer(object):
     @staticmethod
@@ -55,83 +58,6 @@ class QueryServer(object):
         t = Timer(interval=60, function=QueryServer.run_time_queryserver)
         t.start()
 
-servie_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-df = pd.read_excel(os.path.join(servie_path, os.path.join('config', 'file_map.xlsx')), encoding='utf-8',
-                   eindex_col=False)
-
-# database_url = "http://localhost:8765/"
-database_url = "http://localhost:8765/"
-pool = redis.ConnectionPool(host='127.0.0.1', port=6379, db='0')
-
-def init_map_field(df):
-    """
-    字段名映射成对应那个列族的那个字段
-    file_map.xlsx 是需要输入的字段映射关系
-    :return:
-    """
-    map_field={}
-    for n in df.index:
-        hbase_filename = "{f}.{name}".format(f=df.at[n, 'hbase列族'], name=df.at[n, 'hbase字段名'])\
-                        if df.at[n, 'hbase列族'] != "rowkey" else df.at[n, 'hbase字段名']
-        map_field.update({df.at[n, 'hbase字段名']: hbase_filename})
-    return map_field
-
-def init_map_field_opt_search(df):
-    """
-    字段名映射成对应那个列族的那个字段
-    file_map.xlsx 是需要输入的字段映射关系
-    :return:
-    """
-    map_opt_search = {}
-    for n in df.index:
-        hbase_filename = "{f}.{name}".format(f=df.at[n, 'hbase列族'], name=df.at[n, 'hbase字段名'])\
-                        if df.at[n, 'hbase列族'] != "rowkey" else df.at[n, 'hbase字段名']
-        opt_search = "like" if df.at[n, 'hbase列族'] != "rowkey" else "="
-        map_opt_search.update({hbase_filename: opt_search})
-    return map_opt_search
-
-
-def cache_func_redis(timeout=100):
-    # pool = redis.ConnectionPool(host='127.0.0.1', port=6379, db='0')
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger = args[-1]
-            # lst_dct = sorted([{k: kwargs[k]} for k in kwargs], key=lambda d:d.keys()[0])
-            # lst = [str(d.values()[0]) for d in lst_dct]
-            k = '_'.join([func.__name__, str(args[0])])
-            r = redis.StrictRedis(connection_pool=pool)
-            d = r.get(k)
-            if d:
-                # print("命中缓存   k=" + str(k))
-                logger.info("命中缓存   k=" + str(k))
-                d = d.decode()
-                # print(d,type(d))
-                res = json.loads(d)['res']
-                return res
-            else:
-                # print("未命中缓存   k=" + str(k))
-                logger.info("未命中缓存   k=" + str(k))
-                res = func(*args, **kwargs)
-                d = json.dumps({
-                    'res': res
-                })
-                r.set(k, d)
-                r.expire(k, timeout)
-
-                return res
-        return wrapper
-    return decorator
-
-
-def cache_flag(key):
-    r = redis.StrictRedis(connection_pool=pool)
-    d = r.get(key)
-    if d:
-        return True
-    else:
-        return False
-
 
 class phoenixdb_connect(object):
     def __init__(self, database_url, logger=None):
@@ -169,7 +95,7 @@ class jdbc_connect(object):
         jpype.startJVM(jvm_path, args)
         self.conn = jaydebeapi.connect(driver, [
             'jdbc:phoenix:{zkhost}:2181'.format(zkhost=zkhost),
-            '', ''], phoenix_client_jar,libs="phoenix_client_jar;hbase_conf_dir")
+            '', ''], phoenix_client_jar, libs="phoenix_client_jar;hbase_conf_dir")
         self.cursor = self.conn.cursor()
 
     def run_sql(self, sql_str="select * from COMPANY where ID in (select /*+ Index(COMPANY NAME_INDEX)*/ ID from COMPANY where A.NAME like '%网%'  order by ID  limit 100 )"):
@@ -183,31 +109,6 @@ class jdbc_connect(object):
     def close_connect(self):
         self.cursor.close()
         self.conn.close()
-
-
-# global db_object
-# db_object = jdbc_connect()
-# db_object = jdbc_connect(phoenix_client_jar= r"/root/apache-phoenix-4.13.1-HBase-1.2-bin/phoenix-4.13.1-HBase-1.2-client.jar", zkhost='master,slave1,slave2')
-# db_object = phoenixdb_connect(database_url=r'http://localhost:8765/')
-# db_object = phoenixdb_connect(database_url=r'http://192.168.1.117:8765/')
-
-
-map_field = init_map_field(df)
-map_field.update({"ID": "ID"})
-map_field.update({"WEB_SOURCE": "A.WEB_SOURCE"})
-map_field.update({"AREA": "PROVINCE"})      # area也当成省份字段
-print("map_field:", map_field)
-
-map_field_opt_search = init_map_field_opt_search(df)
-map_field_opt_search.update({"ID": "="})
-map_field_opt_search.update({"A.WEB_SOURCE": "="})
-print("map_field_opt_search:", map_field_opt_search)
-
-
-column_name_list = df['hbase字段名'].values.tolist()
-column_name_list.insert(0, "ID")
-column_name_list.append("WEB_SOURCE")
-print("column_name_list:", column_name_list)
 
 
 @cache_func_redis(timeout=36000)
@@ -246,8 +147,6 @@ def result_search(search_condition_limit, db_object, logger):
     t2 = time.time()
     logger.info("make  result_search_list cost time =" + str(t2 - t1))
     return result_search_list
-
-
 
 
 def db_search(search_dict, page=1, per_page=10, startn=0, quick=None, startid=0, logger=None):

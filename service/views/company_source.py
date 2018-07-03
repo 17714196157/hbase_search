@@ -11,7 +11,11 @@ from flask import request
 from flask import jsonify
 from flask_restful import Resource
 from flask import current_app
-from service.models import dbtool_hbase as dbtool
+from service.config.setting import type_db
+if type_db == "es":
+    from service.models import dbtool_Elasticsearch as dbtool
+else:
+    from service.models import dbtool_hbase as dbtool
 
 company_source_entry = Blueprint('company_source', __name__)
 
