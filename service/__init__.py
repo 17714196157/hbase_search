@@ -17,6 +17,7 @@ from service.views.company_detail import company_detail_entry, CompanyDetail
 from service.views.company_city import company_city_entry, CompanyCity
 from service.views.company_urban_area import company_urban_area_entry, CompanyUrbanArea
 from service.views.company_source import company_source_entry, CompanySource
+from service.views.company_industry import company_industry_entry, CompanyIndustry
 from flask_restful import Api
 from service.models.dbtool_hbase import QueryServer
 
@@ -34,6 +35,7 @@ def creat_app():
     view.add_resource(CompanyUrbanArea, '/search/company_urban_area')
     view.add_resource(CompanyDetail, '/search/company_detail')
     view.add_resource(CompanySource, '/search/company_source')
+    view.add_resource(CompanyIndustry, '/search/company_industry')
     app.config.from_json(os.path.join(ConfigPath, "app.json"))
 
     db = MongoEngine()

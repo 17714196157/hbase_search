@@ -89,7 +89,7 @@ def db_area(logger=None):
     logger.info("begin return PROVINCE list")
     es = Elasticsearch(hosts=[es_host], http_auth=es_auth)
     body = {"size": 1, "aggs": {"PROVINCE": {
-        "terms": {"field": "PROVINCE.keyword"}
+        "terms": {"field": "PROVINCE.keyword", "size": 60}
     }}
             }
     data_result_dict = es.search(body=body, index="db", doc_type="company")
@@ -117,7 +117,7 @@ def db_CITY(PROVINCE, logger=None):
             },
             "aggs": {
                 "CITY": {
-                    "terms": {"field": "CITY.keyword"}
+                    "terms": {"field": "CITY.keyword", "size": 30}
                 }
             }
             }
@@ -147,7 +147,7 @@ def db_URBAN_AREA(PROVINCE, CITY, logger=None):
             },
             "aggs": {
                 "URBAN_AREA": {
-                    "terms": {"field": "URBAN_AREA.keyword"}
+                    "terms": {"field": "URBAN_AREA.keyword", "size": 30}
                 }
             }
             }
@@ -167,13 +167,35 @@ def db_source(logger=None):
     body = {"size": 0,
             "aggs": {
                 "WEB_SOURCE": {
-                    "terms": {"field": "WEB_SOURCE.keyword"}
+                    "terms": {"field": "WEB_SOURCE.keyword", "size": 30}
                 }
             }
 }
     data_result_dict = es.search(body=body, index="db", doc_type="company")
     result_search_list = [x.get('key', None) for x in data_result_dict["aggregations"]["WEB_SOURCE"]["buckets"]]
     return result_search_list
+
+@lru_cache(maxsize=128)
+def db_industry(logger=None):
+    """
+    返回数据来源的列表
+    :param logger:
+    :return:
+    """
+    logger.info("begin return db_industry list")
+    es = Elasticsearch(hosts=[es_host], http_auth=es_auth)
+    body = {"size": 0,
+            "aggs": {
+                "INDUSTRY": {
+                    "terms": {"field": "INDUSTRY.keyword", "size": 30}
+                }
+            }
+}
+    data_result_dict = es.search(body=body, index="db", doc_type="company")
+    result_search_list = [x.get('key', None) for x in data_result_dict["aggregations"]["INDUSTRY"]["buckets"]]
+    return result_search_list
+
+
 
 if __name__ == "__main__":
     pass
